@@ -1,0 +1,1 @@
+export default function Page(){return <a href='/capture'>Start</a>;}

@@ -1,7 +1,7 @@
 export type CheckFields = {
   date: string;
   amountNumeric: string;
-  payee: string;
+  payor: string;
 };
 
 export type DonorCandidate = {
@@ -27,9 +27,12 @@ export const processCheckResponseSchema = {
           type: "string",
           description: "Numeric amount written on the check (do not include currency symbols)",
         },
-        payee: { type: "string", description: "Name of the payee" },
+        payor: {
+          type: "string",
+          description: "Name of the payor (the person or organization writing the check)",
+        },
       },
-      required: ["date", "amountNumeric", "payee"],
+      required: ["date", "amountNumeric", "payor"],
     },
     candidates: {
       type: "array",

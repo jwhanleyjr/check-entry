@@ -34,14 +34,16 @@ export async function POST(req: Request) {
           role: "system",
           content:
             "You extract donation check details from an uploaded image. Return JSON matching the schema. " +
-            "If a value is unclear, leave it as an empty string. Include donor candidates only when confidently inferred.",
+            "If a value is unclear, leave it as an empty string. Include donor candidates only when confidently inferred. " +
+            "The payor is the person or organization writing the check, not the recipient (payee).",
         },
         {
           role: "user",
           content: [
             {
               type: "text",
-              text: "Scan this check image and return the date (YYYY-MM-DD), numeric amount, and payee name.",
+              text:
+                "Scan this check image and return the date (YYYY-MM-DD), numeric amount, and payor name (the check writer).",
             },
             { type: "image_url", image_url: { url: imageUrl, detail: "auto" } },
           ],

@@ -7,15 +7,14 @@ export default function Page() {
 
   const FIELD_LABELS: Record<string, string> = {
     date: "Date",
-    checkNumber: "Check Number",
     amount: "Amount",
-    donorName: "Donor Name",
-    payee: "Payee (recognized)",
-    payor: "Payor Name",
+    checkNumber: "Check Number",
     memo: "Memo",
+    donorName: "Donor Name (from check)",
+    payee: "Payee (recognized)",
   };
 
-  const fieldOrder = ["date", "checkNumber", "payee", "amount", "payor", "donorName", "memo"];
+  const fieldOrder = ["date", "amount", "checkNumber", "memo", "donorName", "payee"];
 
   useEffect(() => {
     const p = sessionStorage.getItem("reviewPayload");
@@ -41,15 +40,14 @@ export default function Page() {
       <h1 className="text-2xl font-bold mb-4">Review</h1>
       <form onSubmit={submit} className="grid grid-cols-2 gap-4">
         {fieldOrder.map((field) => {
-          const value = data.fields?.[field];
-          if (value === undefined) return null;
+          const value = data.fields?.[field] ?? "";
           const isReadOnly = field === "payee";
           return (
             <label key={field} className="block text-sm">
               {FIELD_LABELS[field] ?? field}
               <input
                 name={field}
-                defaultValue={String(value ?? "")}
+                defaultValue={String(value)}
                 className={`border p-2 w-full ${isReadOnly ? "bg-gray-100" : ""}`}
                 readOnly={isReadOnly}
               />
@@ -57,7 +55,7 @@ export default function Page() {
           );
         })}
         <label className="col-span-2 block">
-          Donor selection (for Bloomerang search/attribution)
+          Potential donor matches (Bloomerang search)
           <select
             value={donorId}
             onChange={(e) => setDonorId(e.target.value)}

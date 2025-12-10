@@ -16,7 +16,6 @@ export type CheckFields = {
   date?: string;
   checkNumber?: string;
   amount?: string;
-  payor?: string;
   donorName?: string;
   payee?: string;
   memo?: string;
@@ -154,7 +153,6 @@ function buildReviewFields(raw: RawCheckFields): CheckFields {
   if (raw.payee) cleaned.payee = raw.payee;
   const payor = raw.payor && !isKnownPayeeName(raw.payor) ? raw.payor : undefined;
   if (payor) {
-    cleaned.payor = payor;
     cleaned.donorName = payor;
   }
   if (raw.memo) cleaned.memo = raw.memo;
@@ -219,6 +217,10 @@ export async function analyzeCheckImage(
   const candidates = buildCandidates(payorNames);
 
   const fields = buildReviewFields(rawFields);
+
+  if (!fields.donorName && payorNames.length) {
+    fields.donorName = payorNames[0];
+  }
 
   return {
     fields,

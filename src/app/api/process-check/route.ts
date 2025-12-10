@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { processCheckResponseSchema, ProcessCheckPayload } from "@/lib";
+import { isProcessCheckPayload, processCheckResponseSchema, ProcessCheckPayload } from "@/lib";
 
 export async function POST(req: Request) {
   try {
@@ -52,10 +52,16 @@ export async function POST(req: Request) {
     });
 
     const messageContent = completion.choices[0]?.message?.content;
-    const parsed: ProcessCheckPayload | null =
-      messageContent && typeof messageContent === "string"
-        ? (JSON.parse(messageContent) as ProcessCheckPayload)
-        : null;
+    const parsed: ProcessCheckPayload | null = (() => {
+      if (!messageContent || typeof messageContent !== "string") return null;
+      try {
+        const candidate = JSON.parse(messageContent) as unknown;
+        return isProcessCheckPayload(candidate) ? candidate : null;
+      } catch (error) {
+        console.warn("process-check parse error", error);
+        return null;
+      }
+    })();
 
     if (!parsed) {
       return Response.json({ error: "Unable to parse check details" }, { status: 502 });

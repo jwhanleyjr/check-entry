@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 
-export type CheckFields = {
+export type RawCheckFields = {
   date?: string;
   amountNumeric?: string;
   amountWritten?: string;
@@ -10,6 +10,14 @@ export type CheckFields = {
   routingNumber?: string;
   accountNumber?: string;
   checkNumber?: string;
+};
+
+export type CheckFields = {
+  date?: string;
+  checkNumber?: string;
+  amount?: string;
+  payor?: string;
+  memo?: string;
 };
 
 export type DonorCandidate = {
@@ -91,8 +99,8 @@ export function extractPayorNames(payorText: string): string[] {
   return attachSharedLastName(limitedSegments);
 }
 
-function normalizeFieldMap(raw: Record<string, unknown>): CheckFields {
-  const normalized: CheckFields = {};
+function normalizeFieldMap(raw: Record<string, unknown>): RawCheckFields {
+  const normalized: RawCheckFields = {};
   for (const [key, value] of Object.entries(raw ?? {})) {
     if (typeof value === "string") {
       const cleaned = normalizeWhitespace(value);
@@ -121,6 +129,20 @@ function resolvePayorCandidates(rawPayorNames: unknown, payorField?: string) {
   }
 
   return deduped.slice(0, 2);
+}
+
+function buildReviewFields(raw: RawCheckFields): CheckFields {
+  const cleaned: CheckFields = {};
+
+  if (raw.date) cleaned.date = raw.date;
+  if (raw.checkNumber) cleaned.checkNumber = raw.checkNumber;
+  if (raw.payor) cleaned.payor = raw.payor;
+  if (raw.memo) cleaned.memo = raw.memo;
+
+  const amount = raw.amountNumeric ?? raw.amountWritten;
+  if (amount) cleaned.amount = amount;
+
+  return cleaned;
 }
 
 function buildCandidates(names: string[]): DonorCandidate[] {
@@ -155,7 +177,7 @@ export async function analyzeCheckImage(
           {
             type: "text",
             text:
-              "Read the check image and return {\"fields\":{...},\"payorNames\":[...]} where fields may include date (YYYY-MM-DD), amountNumeric, amountWritten, payor, payee, memo, routingNumber, accountNumber, and checkNumber. Leave out unknown keys.",
+              "Read the check image and return {\"fields\":{...},\"payorNames\":[...]} where fields may include date (YYYY-MM-DD), amountNumeric, amountWritten, payor, memo, and checkNumber. Leave out unknown keys.",
           },
           { type: "image_url", image_url: { url: imageDataUrl } },
         ],
@@ -172,9 +194,11 @@ export async function analyzeCheckImage(
     parsed = {};
   }
 
-  const fields = normalizeFieldMap(parsed.fields ?? parsed ?? {});
-  const payorNames = resolvePayorCandidates(parsed.payorNames, fields.payor);
+  const rawFields = normalizeFieldMap(parsed.fields ?? parsed ?? {});
+  const payorNames = resolvePayorCandidates(parsed.payorNames, rawFields.payor);
   const candidates = buildCandidates(payorNames);
+
+  const fields = buildReviewFields(rawFields);
 
   return {
     fields,

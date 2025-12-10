@@ -28,7 +28,9 @@ export default function Page() {
     <main className="p-6 max-w-3xl mx-auto">
       <h1 className="text-2xl font-bold mb-4">Review</h1>
       <form onSubmit={submit} className="grid grid-cols-2 gap-4">
-        {Object.entries<any>(data.fields).map(([k,v])=>(
+        {Object.entries<any>(data.fields)
+          .filter(([key]) => key !== "routingNumber")
+          .map(([k, v]) => (
           <label key={k} className="block text-sm">
             {k}
             <input name={k} defaultValue={String(v ?? "")} className="border p-2 w-full" />

@@ -1,6 +1,9 @@
 import OpenAI from "openai";
 
-import { searchBloomerangConstituents } from "./bloomerang";
+import {
+  searchBloomerangConstituents,
+  type BloomerangQueryAttempt,
+} from "./bloomerang";
 
 export type RawCheckFields = {
   date?: string;
@@ -32,6 +35,9 @@ export type DonorSearchAttempt = {
   query: string;
   resultCount: number;
   error?: string;
+  apiBaseUrl?: string;
+  apiKeyPresent?: boolean;
+  queryAttempts?: BloomerangQueryAttempt[];
 };
 
 export type ProcessCheckPayload = {
@@ -186,8 +192,15 @@ async function fetchDonorCandidates(payorNames: string[]) {
         }
 
         try {
-          const matches = await searchBloomerangConstituents(name);
-          searchLog.push({ query: name, resultCount: matches.length });
+          const { matches, attempts, apiBaseUrl, apiKeyPresent } =
+            await searchBloomerangConstituents(name);
+          searchLog.push({
+            query: name,
+            resultCount: matches.length,
+            apiBaseUrl,
+            apiKeyPresent,
+            queryAttempts: attempts,
+          });
           return matches;
         } catch (error) {
           const message = error instanceof Error ? error.message : "Unknown error";

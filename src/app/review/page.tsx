@@ -71,12 +71,37 @@ export default function Page() {
         </label>
         <div className="col-span-2 text-sm text-gray-700">
           <p className="font-semibold">Bloomerang search log</p>
-          <ul className="list-disc ml-5 mt-1 space-y-1">
+          <ul className="list-disc ml-5 mt-1 space-y-2">
             {(data.searchLog ?? []).map((entry: any, idx: number) => (
-              <li key={`${entry.query}-${idx}`}>
-                <span className="font-mono">{entry.query || "(blank)"}</span>: {" "}
-                {entry.resultCount} result{entry.resultCount === 1 ? "" : "s"}
-                {entry.error ? ` — Error: ${entry.error}` : ""}
+              <li key={`${entry.query}-${idx}`} className="space-y-1">
+                <div>
+                  <span className="font-mono">{entry.query || "(blank)"}</span>: {" "}
+                  {entry.resultCount} result{entry.resultCount === 1 ? "" : "s"}
+                  {entry.error ? ` — Error: ${entry.error}` : ""}
+                </div>
+                <div className="text-gray-600 text-xs">
+                  <div>
+                    API base URL: <span className="font-mono">{entry.apiBaseUrl || "(unknown)"}</span>
+                  </div>
+                  <div>API key present: {entry.apiKeyPresent ? "Yes" : "No"}</div>
+                  <div className="mt-1">
+                    Query attempts:
+                    <ul className="list-disc ml-5 space-y-0.5">
+                      {(entry.queryAttempts ?? []).map((attempt: any, attemptIdx: number) => (
+                        <li key={`${attempt.searchText}-${attemptIdx}`}>
+                          <span className="font-mono">{attempt.searchText || "(blank)"}</span>
+                          {" — "}
+                          {attempt.resultCount} result{attempt.resultCount === 1 ? "" : "s"}
+                          {attempt.status ? ` (HTTP ${attempt.status})` : ""}
+                          {attempt.error ? ` — Error: ${attempt.error}` : ""}
+                        </li>
+                      ))}
+                      {(!entry.queryAttempts || entry.queryAttempts.length === 0) && (
+                        <li className="list-none text-gray-500">No per-query attempts recorded.</li>
+                      )}
+                    </ul>
+                  </div>
+                </div>
               </li>
             ))}
             {(!data.searchLog || data.searchLog.length === 0) && (

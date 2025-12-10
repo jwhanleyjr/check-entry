@@ -45,15 +45,50 @@ async function fetchJson(url: string) {
     cache: "no-store",
   });
 
+  const status = response.status;
+  const bodyText = await response.text();
+
   if (!response.ok) {
-    throw new Error(`Bloomerang error ${response.status}`);
+    throw new Error(
+      `Bloomerang error ${status}${bodyText ? `: ${bodyText.slice(0, 200)}` : ""}`,
+    );
   }
 
-  return response.json();
+  try {
+    return { data: JSON.parse(bodyText), status };
+  } catch (error) {
+    throw new Error(
+      `Bloomerang parse error ${status}${bodyText ? `: ${bodyText.slice(0, 200)}` : ""}`,
+    );
+  }
 }
 
-export async function searchBloomerangConstituents(name: string) {
-  if (!name.trim()) return [];
+export type BloomerangQueryAttempt = {
+  searchText: string;
+  resultCount: number;
+  status?: number;
+  error?: string;
+};
+
+export type BloomerangSearchOutcome = {
+  matches: { id: string; name: string }[];
+  attempts: BloomerangQueryAttempt[];
+  apiBaseUrl: string;
+  apiKeyPresent: boolean;
+};
+
+export async function searchBloomerangConstituents(
+  name: string,
+): Promise<BloomerangSearchOutcome> {
+  if (!name.trim())
+    return {
+      matches: [],
+      attempts: [
+        { searchText: "", resultCount: 0, error: "Empty name skipped" },
+      ],
+      apiBaseUrl: BLOOMERANG_BASE_URL,
+      apiKeyPresent: Boolean(BLOOMERANG_API_KEY?.trim()),
+    };
   if (!BLOOMERANG_API_KEY) {
     throw new Error("Missing BLOOMERANG_API_KEY");
   }
@@ -68,22 +103,41 @@ export async function searchBloomerangConstituents(name: string) {
 
   const aggregatedResults: BloomerangConstituent[] = [];
   const seenIds = new Set<number>();
+  const attempts: BloomerangQueryAttempt[] = [];
 
   for (const query of queries) {
     const url = `${BLOOMERANG_BASE_URL}/constituents?searchText=${encodeURIComponent(query)}`;
-    const json = (await fetchJson(url)) as BloomerangSearchResult | BloomerangConstituent[];
-    const results = Array.isArray(json) ? json : json.results ?? [];
+    try {
+      const { data, status } = await fetchJson(url);
+      const results = Array.isArray(data)
+        ? data
+        : (data as BloomerangSearchResult).results ?? [];
 
-    for (const person of results) {
-      if (typeof person.id !== "number") continue;
-      if (seenIds.has(person.id)) continue;
-      seenIds.add(person.id);
-      aggregatedResults.push(person);
+      for (const person of results) {
+        if (typeof person.id !== "number") continue;
+        if (seenIds.has(person.id)) continue;
+        seenIds.add(person.id);
+        aggregatedResults.push(person);
+      }
+
+      attempts.push({
+        searchText: query,
+        resultCount: results.length,
+        status,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      attempts.push({ searchText: query, resultCount: 0, error: message });
     }
   }
 
-  return aggregatedResults.map((person) => ({
-    id: String(person.id),
-    name: `${formatDisplayName(person)} (ID ${person.id})`,
-  }));
+  return {
+    matches: aggregatedResults.map((person) => ({
+      id: String(person.id),
+      name: `${formatDisplayName(person)} (ID ${person.id})`,
+    })),
+    attempts,
+    apiBaseUrl: BLOOMERANG_BASE_URL,
+    apiKeyPresent: Boolean(BLOOMERANG_API_KEY?.trim()),
+  };
 }

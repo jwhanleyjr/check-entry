@@ -1,7 +1,15 @@
+import OpenAI from "openai";
+
 export type CheckFields = {
-  date: string;
-  amountNumeric: string;
-  payee: string;
+  date?: string;
+  amountNumeric?: string;
+  amountWritten?: string;
+  payor?: string;
+  payee?: string;
+  memo?: string;
+  routingNumber?: string;
+  accountNumber?: string;
+  checkNumber?: string;
 };
 
 export type DonorCandidate = {
@@ -13,6 +21,8 @@ export type ProcessCheckPayload = {
   fields: CheckFields;
   candidates: DonorCandidate[];
 };
+
+const DEFAULT_MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
 
 const HONORIFICS = [
   "mr",
@@ -81,16 +91,93 @@ export function extractPayorNames(payorText: string): string[] {
   return attachSharedLastName(limitedSegments);
 }
 
-export function getMockProcessCheckPayload(): ProcessCheckPayload {
-  return {
-    fields: {
-      date: "2024-09-01",
-      amountNumeric: "250.00",
-      payee: "Community Aid",
-    },
-    candidates: [
-      { id: "donor-001", name: "Alex Johnson" },
-      { id: "donor-002", name: "Taylor Smith" },
+function normalizeFieldMap(raw: Record<string, unknown>): CheckFields {
+  const normalized: CheckFields = {};
+  for (const [key, value] of Object.entries(raw ?? {})) {
+    if (typeof value === "string") {
+      const cleaned = normalizeWhitespace(value);
+      if (cleaned) (normalized as Record<string, string>)[key] = cleaned;
+    }
+  }
+  return normalized;
+}
+
+function resolvePayorCandidates(rawPayorNames: unknown, payorField?: string) {
+  const explicitNames = Array.isArray(rawPayorNames)
+    ? rawPayorNames.filter((v): v is string => typeof v === "string")
+    : [];
+
+  const inferredNames = payorField ? extractPayorNames(payorField) : [];
+  const combined = [...explicitNames, ...inferredNames];
+
+  const deduped: string[] = [];
+  const seen = new Set<string>();
+  for (const name of combined) {
+    const normalized = name.toLowerCase();
+    if (!seen.has(normalized) && name.trim()) {
+      seen.add(normalized);
+      deduped.push(normalizeWhitespace(name));
+    }
+  }
+
+  return deduped.slice(0, 2);
+}
+
+function buildCandidates(names: string[]): DonorCandidate[] {
+  return names.map((name, idx) => ({ id: `payor-${idx + 1}`, name }));
+}
+
+async function fileToDataUrl(file: File) {
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const mime = file.type || "image/png";
+  return `data:${mime};base64,${buffer.toString("base64")}`;
+}
+
+export async function analyzeCheckImage(
+  file: File,
+  { model = DEFAULT_MODEL } = {}
+): Promise<ProcessCheckPayload> {
+  const imageDataUrl = await fileToDataUrl(file);
+  const client = new OpenAI();
+
+  const completion = await client.chat.completions.create({
+    model,
+    response_format: { type: "json_object" },
+    messages: [
+      {
+        role: "system",
+        content:
+          "You are an assistant that extracts bank check details. Return JSON only.",
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text:
+              "Read the check image and return {\"fields\":{...},\"payorNames\":[...]} where fields may include date (YYYY-MM-DD), amountNumeric, amountWritten, payor, payee, memo, routingNumber, accountNumber, and checkNumber. Leave out unknown keys.",
+          },
+          { type: "image_url", image_url: { url: imageDataUrl } },
+        ],
+      },
     ],
+  });
+
+  const messageContent = completion.choices[0]?.message?.content ?? "{}";
+
+  let parsed: any = {};
+  try {
+    parsed = JSON.parse(messageContent);
+  } catch (error) {
+    parsed = {};
+  }
+
+  const fields = normalizeFieldMap(parsed.fields ?? parsed ?? {});
+  const payorNames = resolvePayorCandidates(parsed.payorNames, fields.payor);
+  const candidates = buildCandidates(payorNames);
+
+  return {
+    fields,
+    candidates,
   };
 }

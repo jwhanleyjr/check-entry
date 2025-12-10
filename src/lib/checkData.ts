@@ -123,7 +123,9 @@ function normalizeFieldMap(raw: Record<string, unknown>): RawCheckFields {
 
 function resolvePayorCandidates(rawPayorNames: unknown, payorField?: string) {
   const explicitNames = Array.isArray(rawPayorNames)
-    ? rawPayorNames.filter((v): v is string => typeof v === "string")
+    ? rawPayorNames
+        .filter((v): v is string => typeof v === "string")
+        .flatMap(extractPayorNames)
     : [];
 
   const sanitizedPayorField = payorField && !isKnownPayeeName(payorField)

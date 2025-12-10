@@ -9,12 +9,13 @@ export default function Page() {
     date: "Date",
     checkNumber: "Check Number",
     amount: "Amount",
+    donorName: "Donor Name",
     payee: "Payee (recognized)",
     payor: "Payor Name",
     memo: "Memo",
   };
 
-  const fieldOrder = ["date", "checkNumber", "payee", "amount", "payor", "memo"];
+  const fieldOrder = ["date", "checkNumber", "payee", "amount", "payor", "donorName", "memo"];
 
   useEffect(() => {
     const p = sessionStorage.getItem("reviewPayload");
@@ -56,10 +57,16 @@ export default function Page() {
           );
         })}
         <label className="col-span-2 block">
-          Donor (for Bloomerang search)
-          <select value={donorId} onChange={e=>setDonorId(e.target.value)} className="border p-2 w-full">
-            {data.candidates.map((c:any)=>(
-              <option key={c.id} value={c.id}>{c.name}</option>
+          Donor selection (for Bloomerang search/attribution)
+          <select
+            value={donorId}
+            onChange={(e) => setDonorId(e.target.value)}
+            className="border p-2 w-full"
+          >
+            {(data.candidates ?? []).map((c: any) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
             ))}
             <option value="">(No match)</option>
           </select>

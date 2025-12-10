@@ -32,6 +32,8 @@ export type ProcessCheckPayload = {
 
 const DEFAULT_MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
 
+const KNOWN_PAYEE = "three trees";
+
 const HONORIFICS = [
   "mr",
   "mrs",
@@ -50,6 +52,12 @@ const HONORIFICS = [
 
 function normalizeWhitespace(value: string) {
   return value.replace(/\s+/g, " ").trim();
+}
+
+function isKnownPayeeName(value: string | undefined) {
+  if (!value) return false;
+  const cleaned = normalizeWhitespace(value).replace(/[^a-zA-Z\s'-]/g, "").toLowerCase();
+  return cleaned === KNOWN_PAYEE;
 }
 
 function stripHonorifics(value: string) {
@@ -115,12 +123,17 @@ function resolvePayorCandidates(rawPayorNames: unknown, payorField?: string) {
     ? rawPayorNames.filter((v): v is string => typeof v === "string")
     : [];
 
-  const inferredNames = payorField ? extractPayorNames(payorField) : [];
+  const sanitizedPayorField = payorField && !isKnownPayeeName(payorField)
+    ? payorField
+    : undefined;
+
+  const inferredNames = sanitizedPayorField ? extractPayorNames(sanitizedPayorField) : [];
   const combined = [...explicitNames, ...inferredNames];
 
   const deduped: string[] = [];
   const seen = new Set<string>();
   for (const name of combined) {
+    if (isKnownPayeeName(name)) continue;
     const normalized = name.toLowerCase();
     if (!seen.has(normalized) && name.trim()) {
       seen.add(normalized);
@@ -136,7 +149,7 @@ function buildReviewFields(raw: RawCheckFields): CheckFields {
 
   if (raw.date) cleaned.date = raw.date;
   if (raw.checkNumber) cleaned.checkNumber = raw.checkNumber;
-  if (raw.payor) cleaned.payor = raw.payor;
+  if (raw.payor && !isKnownPayeeName(raw.payor)) cleaned.payor = raw.payor;
   if (raw.memo) cleaned.memo = raw.memo;
 
   const amount = raw.amountNumeric ?? raw.amountWritten;
@@ -177,7 +190,7 @@ export async function analyzeCheckImage(
           {
             type: "text",
             text:
-              "Read the check image and return {\"fields\":{...},\"payorNames\":[...]} where fields may include date (YYYY-MM-DD), amountNumeric, amountWritten, payor, memo, and checkNumber. Leave out unknown keys.",
+              "Read the check image and return {\"fields\":{...},\"payorNames\":[...]} where fields may include date (YYYY-MM-DD), amountNumeric, amountWritten, payor, memo, and checkNumber. The payee on every check is Three Trees; do not list the payee as the payor. Payor is the person or people writing the check. If you cannot confidently read the payor name, leave it blank. Leave out unknown keys.",
           },
           { type: "image_url", image_url: { url: imageDataUrl } },
         ],

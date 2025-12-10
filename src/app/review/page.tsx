@@ -1,16 +1,23 @@
 "use client";
+import { isProcessCheckPayload, ProcessCheckPayload } from "@/lib";
 import { useEffect, useState } from "react";
 
 export default function Page() {
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<ProcessCheckPayload | null>(null);
   const [donorId, setDonorId] = useState("");
 
   useEffect(() => {
     const p = sessionStorage.getItem("reviewPayload");
-    if (p) {
-      const x = JSON.parse(p);
-      setData(x);
-      if (x.candidates?.length) setDonorId(x.candidates[0].id);
+    if (!p) return;
+
+    try {
+      const parsed = JSON.parse(p) as unknown;
+      if (isProcessCheckPayload(parsed)) {
+        setData(parsed);
+        if (parsed.candidates.length) setDonorId(parsed.candidates[0].id);
+      }
+    } catch (error) {
+      console.warn("Unable to load review payload", error);
     }
   }, []);
 
@@ -28,17 +35,19 @@ export default function Page() {
     <main className="p-6 max-w-3xl mx-auto">
       <h1 className="text-2xl font-bold mb-4">Review</h1>
       <form onSubmit={submit} className="grid grid-cols-2 gap-4">
-        {Object.entries<any>(data.fields).map(([k,v])=>(
-          <label key={k} className="block text-sm">
-            {k}
-            <input name={k} defaultValue={String(v ?? "")} className="border p-2 w-full" />
+        {Object.entries(data.fields).map(([key, value]) => (
+          <label key={key} className="block text-sm">
+            {key}
+            <input name={key} defaultValue={value} className="border p-2 w-full" />
           </label>
         ))}
         <label className="col-span-2 block">
           Donor
-          <select value={donorId} onChange={e=>setDonorId(e.target.value)} className="border p-2 w-full">
-            {data.candidates.map((c:any)=>(
-              <option key={c.id} value={c.id}>{c.name}</option>
+          <select value={donorId} onChange={(e) => setDonorId(e.target.value)} className="border p-2 w-full">
+            {data.candidates.map((candidate) => (
+              <option key={candidate.id} value={candidate.id}>
+                {candidate.name}
+              </option>
             ))}
             <option value="">(No match)</option>
           </select>

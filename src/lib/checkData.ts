@@ -14,6 +14,29 @@ export type ProcessCheckPayload = {
   candidates: DonorCandidate[];
 };
 
+export function isProcessCheckPayload(value: unknown): value is ProcessCheckPayload {
+  if (!value || typeof value !== "object") return false;
+
+  const obj = value as Record<string, unknown>;
+  const fields = obj.fields as Record<string, unknown> | undefined;
+
+  const hasValidFields =
+    fields !== undefined &&
+    typeof fields.date === "string" &&
+    typeof fields.amountNumeric === "string" &&
+    typeof fields.payor === "string";
+
+  const candidates = obj.candidates as unknown;
+  const hasValidCandidates =
+    Array.isArray(candidates) &&
+    candidates.every((candidate) => {
+      const c = candidate as Record<string, unknown>;
+      return typeof c.id === "string" && typeof c.name === "string";
+    });
+
+  return hasValidFields && hasValidCandidates;
+}
+
 export const processCheckResponseSchema = {
   type: "object",
   additionalProperties: false,

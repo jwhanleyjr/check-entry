@@ -37,6 +37,38 @@ function loosenNameQuery(name: string) {
   return filtered.join(" ");
 }
 
+function expandNameQueries(name: string) {
+  const normalized = normalizeName(name);
+  if (!normalized) return [] as string[];
+
+  const parts = normalized.split(" ").filter(Boolean);
+  const first = parts[0];
+  const last = parts.at(-1);
+  const hasMultiPartName = parts.length > 1;
+
+  const queries = [normalized];
+
+  const loosened = loosenNameQuery(name);
+  if (loosened && loosened !== normalized) queries.push(loosened);
+
+  if (hasMultiPartName && first && last) {
+    const commaVariant = `${last}, ${first}`;
+    if (commaVariant !== normalized && commaVariant !== loosened) {
+      queries.push(commaVariant);
+    }
+
+    if (last !== normalized && last !== loosened) {
+      queries.push(last);
+    }
+
+    if (first !== normalized && first !== loosened && first !== last) {
+      queries.push(first);
+    }
+  }
+
+  return queries;
+}
+
 async function fetchJson(url: string) {
   const response = await fetch(url, {
     headers: {
@@ -93,13 +125,7 @@ export async function searchBloomerangConstituents(
     throw new Error("Missing BLOOMERANG_API_KEY");
   }
 
-  const queries = Array.from(
-    new Set(
-      [normalizeName(name), loosenNameQuery(name)]
-        .map((value) => value.trim())
-        .filter(Boolean),
-    ),
-  );
+  const queries = Array.from(new Set(expandNameQueries(name).map((value) => value.trim()).filter(Boolean)));
 
   const aggregatedResults: BloomerangConstituent[] = [];
   const seenIds = new Set<number>();

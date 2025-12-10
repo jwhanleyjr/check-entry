@@ -44,10 +44,12 @@ export async function searchBloomerangConstituents(name: string) {
     const json = (await fetchJson(url)) as BloomerangSearchResult | BloomerangConstituent[];
     const results = Array.isArray(json) ? json : json.results ?? [];
 
-    return results.map((person) => ({
-      id: String(person.id),
-      name: formatDisplayName(person),
-    }));
+    return results
+      .filter((person) => typeof person.id === "number")
+      .map((person) => ({
+        id: String(person.id),
+        name: `${formatDisplayName(person)} (ID ${person.id})`,
+      }));
   } catch (error) {
     console.error("bloomerang search failed", error);
     return [];

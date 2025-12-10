@@ -165,10 +165,6 @@ function buildReviewFields(raw: RawCheckFields): CheckFields {
   return cleaned;
 }
 
-function buildCandidates(names: string[]): DonorCandidate[] {
-  return names.map((name, idx) => ({ id: `payor-${idx + 1}`, name }));
-}
-
 async function fetchDonorCandidates(payorNames: string[]) {
   const bloomerangMatches = (
     await Promise.all(payorNames.map((name) => searchBloomerangConstituents(name)))
@@ -184,15 +180,6 @@ async function fetchDonorCandidates(payorNames: string[]) {
       seen.add(candidate.id);
       combined.push(candidate);
     }
-  }
-
-  if (!combined.length) {
-    buildCandidates(payorNames).forEach((c) => {
-      if (!seen.has(c.id)) {
-        seen.add(c.id);
-        combined.push(c);
-      }
-    });
   }
 
   return combined;

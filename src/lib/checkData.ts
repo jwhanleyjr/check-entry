@@ -90,6 +90,25 @@ function extractNameWords(value: string) {
   return words ? words.join(" ") : "";
 }
 
+function splitOnRepeatedLastName(segment: string) {
+  const words = segment.split(" ").filter(Boolean);
+  if (words.length < 4) return [segment];
+
+  const lastName = words.at(-1);
+  if (!lastName) return [segment];
+
+  const firstLastNameIndex = words.indexOf(lastName);
+  if (firstLastNameIndex <= 0 || firstLastNameIndex === words.length - 1) {
+    return [segment];
+  }
+
+  const first = words.slice(0, firstLastNameIndex + 1).join(" ");
+  const second = words.slice(firstLastNameIndex + 1).join(" ");
+  if (!first || !second) return [segment];
+
+  return [first, second];
+}
+
 function attachSharedLastName(parts: string[]) {
   if (parts.length !== 2) return parts;
 
@@ -114,6 +133,7 @@ export function extractPayorNames(payorText: string): string[] {
     .split(/\b(?:and|&|\+|\/)\b/i)
     .map(stripHonorifics)
     .map(extractNameWords)
+    .flatMap(splitOnRepeatedLastName)
     .map(normalizeWhitespace)
     .filter(Boolean);
 

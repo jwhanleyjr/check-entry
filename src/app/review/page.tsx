@@ -69,6 +69,21 @@ export default function Page() {
             <option value="">(No match)</option>
           </select>
         </label>
+        <div className="col-span-2 text-sm text-gray-700">
+          <p className="font-semibold">Bloomerang search log</p>
+          <ul className="list-disc ml-5 mt-1 space-y-1">
+            {(data.searchLog ?? []).map((entry: any, idx: number) => (
+              <li key={`${entry.query}-${idx}`}>
+                <span className="font-mono">{entry.query || "(blank)"}</span>: {" "}
+                {entry.resultCount} result{entry.resultCount === 1 ? "" : "s"}
+                {entry.error ? ` — Error: ${entry.error}` : ""}
+              </li>
+            ))}
+            {(!data.searchLog || data.searchLog.length === 0) && (
+              <li className="list-none text-gray-500">No Bloomerang lookups recorded.</li>
+            )}
+          </ul>
+        </div>
         <button className="col-span-2 px-4 py-2 bg-green-600 text-white rounded">Submit</button>
       </form>
     </main>

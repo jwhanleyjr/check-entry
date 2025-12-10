@@ -28,9 +28,16 @@ export type DonorCandidate = {
   name: string;
 };
 
+export type DonorSearchAttempt = {
+  query: string;
+  resultCount: number;
+  error?: string;
+};
+
 export type ProcessCheckPayload = {
   fields: CheckFields;
   candidates: DonorCandidate[];
+  searchLog: DonorSearchAttempt[];
 };
 
 const DEFAULT_MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
@@ -168,8 +175,27 @@ function buildReviewFields(raw: RawCheckFields): CheckFields {
 }
 
 async function fetchDonorCandidates(payorNames: string[]) {
+  const searchLog: DonorSearchAttempt[] = [];
+
   const bloomerangMatches = (
-    await Promise.all(payorNames.map((name) => searchBloomerangConstituents(name)))
+    await Promise.all(
+      payorNames.map(async (name) => {
+        if (!name.trim()) {
+          searchLog.push({ query: name, resultCount: 0, error: "Empty name skipped" });
+          return [];
+        }
+
+        try {
+          const matches = await searchBloomerangConstituents(name);
+          searchLog.push({ query: name, resultCount: matches.length });
+          return matches;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Unknown error";
+          searchLog.push({ query: name, resultCount: 0, error: message });
+          return [];
+        }
+      }),
+    )
   )
     .flat()
     .filter(Boolean);
@@ -184,7 +210,7 @@ async function fetchDonorCandidates(payorNames: string[]) {
     }
   }
 
-  return combined;
+  return { candidates: combined, searchLog };
 }
 
 async function fileToDataUrl(file: File) {
@@ -234,7 +260,7 @@ export async function analyzeCheckImage(
 
   const rawFields = normalizeFieldMap(parsed.fields ?? parsed ?? {});
   const payorNames = resolvePayorCandidates(parsed.payorNames, rawFields.payor);
-  const candidates = await fetchDonorCandidates(payorNames);
+  const { candidates, searchLog } = await fetchDonorCandidates(payorNames);
 
   const fields = buildReviewFields(rawFields);
 
@@ -245,5 +271,6 @@ export async function analyzeCheckImage(
   return {
     fields,
     candidates,
+    searchLog,
   };
 }

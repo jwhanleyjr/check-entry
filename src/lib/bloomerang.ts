@@ -35,23 +35,19 @@ async function fetchJson(url: string) {
 }
 
 export async function searchBloomerangConstituents(name: string) {
-  if (!name.trim() || !BLOOMERANG_API_KEY) return [];
-
-  try {
-    const url = `${BLOOMERANG_BASE_URL}/constituents?searchText=${encodeURIComponent(
-      name,
-    )}`;
-    const json = (await fetchJson(url)) as BloomerangSearchResult | BloomerangConstituent[];
-    const results = Array.isArray(json) ? json : json.results ?? [];
-
-    return results
-      .filter((person) => typeof person.id === "number")
-      .map((person) => ({
-        id: String(person.id),
-        name: `${formatDisplayName(person)} (ID ${person.id})`,
-      }));
-  } catch (error) {
-    console.error("bloomerang search failed", error);
-    return [];
+  if (!name.trim()) return [];
+  if (!BLOOMERANG_API_KEY) {
+    throw new Error("Missing BLOOMERANG_API_KEY");
   }
+
+  const url = `${BLOOMERANG_BASE_URL}/constituents?searchText=${encodeURIComponent(name)}`;
+  const json = (await fetchJson(url)) as BloomerangSearchResult | BloomerangConstituent[];
+  const results = Array.isArray(json) ? json : json.results ?? [];
+
+  return results
+    .filter((person) => typeof person.id === "number")
+    .map((person) => ({
+      id: String(person.id),
+      name: `${formatDisplayName(person)} (ID ${person.id})`,
+    }));
 }

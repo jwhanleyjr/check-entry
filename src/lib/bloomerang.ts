@@ -19,6 +19,24 @@ function formatDisplayName(person: BloomerangConstituent) {
   return parts || person.householdName || person.displayName || "Unknown";
 }
 
+function normalizeName(name: string) {
+  return name.replace(/[.]/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function loosenNameQuery(name: string) {
+  const normalized = normalizeName(name);
+  const parts = normalized.split(" ");
+  if (parts.length < 3) return normalized;
+
+  const filtered = parts.filter((part, index) => {
+    const isFirstOrLast = index === 0 || index === parts.length - 1;
+    if (isFirstOrLast) return true;
+    return part.length > 1; // drop middle initials like "A"
+  });
+
+  return filtered.join(" ");
+}
+
 async function fetchJson(url: string) {
   const response = await fetch(url, {
     headers: {
@@ -40,14 +58,32 @@ export async function searchBloomerangConstituents(name: string) {
     throw new Error("Missing BLOOMERANG_API_KEY");
   }
 
-  const url = `${BLOOMERANG_BASE_URL}/constituents?searchText=${encodeURIComponent(name)}`;
-  const json = (await fetchJson(url)) as BloomerangSearchResult | BloomerangConstituent[];
-  const results = Array.isArray(json) ? json : json.results ?? [];
+  const queries = Array.from(
+    new Set(
+      [normalizeName(name), loosenNameQuery(name)]
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
+  );
 
-  return results
-    .filter((person) => typeof person.id === "number")
-    .map((person) => ({
-      id: String(person.id),
-      name: `${formatDisplayName(person)} (ID ${person.id})`,
-    }));
+  const aggregatedResults: BloomerangConstituent[] = [];
+  const seenIds = new Set<number>();
+
+  for (const query of queries) {
+    const url = `${BLOOMERANG_BASE_URL}/constituents?searchText=${encodeURIComponent(query)}`;
+    const json = (await fetchJson(url)) as BloomerangSearchResult | BloomerangConstituent[];
+    const results = Array.isArray(json) ? json : json.results ?? [];
+
+    for (const person of results) {
+      if (typeof person.id !== "number") continue;
+      if (seenIds.has(person.id)) continue;
+      seenIds.add(person.id);
+      aggregatedResults.push(person);
+    }
+  }
+
+  return aggregatedResults.map((person) => ({
+    id: String(person.id),
+    name: `${formatDisplayName(person)} (ID ${person.id})`,
+  }));
 }

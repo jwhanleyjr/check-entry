@@ -9,11 +9,12 @@ export default function Page() {
     date: "Date",
     checkNumber: "Check Number",
     amount: "Amount",
+    payee: "Payee (recognized)",
     payor: "Payor Name",
     memo: "Memo",
   };
 
-  const fieldOrder = ["date", "checkNumber", "amount", "payor", "memo"];
+  const fieldOrder = ["date", "checkNumber", "payee", "amount", "payor", "memo"];
 
   useEffect(() => {
     const p = sessionStorage.getItem("reviewPayload");
@@ -41,19 +42,21 @@ export default function Page() {
         {fieldOrder.map((field) => {
           const value = data.fields?.[field];
           if (value === undefined) return null;
+          const isReadOnly = field === "payee";
           return (
             <label key={field} className="block text-sm">
               {FIELD_LABELS[field] ?? field}
               <input
                 name={field}
                 defaultValue={String(value ?? "")}
-                className="border p-2 w-full"
+                className={`border p-2 w-full ${isReadOnly ? "bg-gray-100" : ""}`}
+                readOnly={isReadOnly}
               />
             </label>
           );
         })}
         <label className="col-span-2 block">
-          Donor
+          Donor (for Bloomerang search)
           <select value={donorId} onChange={e=>setDonorId(e.target.value)} className="border p-2 w-full">
             {data.candidates.map((c:any)=>(
               <option key={c.id} value={c.id}>{c.name}</option>

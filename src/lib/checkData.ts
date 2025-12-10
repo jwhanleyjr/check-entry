@@ -17,6 +17,7 @@ export type CheckFields = {
   checkNumber?: string;
   amount?: string;
   payor?: string;
+  payee?: string;
   memo?: string;
 };
 
@@ -149,6 +150,7 @@ function buildReviewFields(raw: RawCheckFields): CheckFields {
 
   if (raw.date) cleaned.date = raw.date;
   if (raw.checkNumber) cleaned.checkNumber = raw.checkNumber;
+  if (raw.payee) cleaned.payee = raw.payee;
   if (raw.payor && !isKnownPayeeName(raw.payor)) cleaned.payor = raw.payor;
   if (raw.memo) cleaned.memo = raw.memo;
 

@@ -1,5 +1,7 @@
 import OpenAI from "openai";
 
+import { searchBloomerangConstituents } from "./bloomerang";
+
 export type RawCheckFields = {
   date?: string;
   amountNumeric?: string;
@@ -167,6 +169,35 @@ function buildCandidates(names: string[]): DonorCandidate[] {
   return names.map((name, idx) => ({ id: `payor-${idx + 1}`, name }));
 }
 
+async function fetchDonorCandidates(payorNames: string[]) {
+  const bloomerangMatches = (
+    await Promise.all(payorNames.map((name) => searchBloomerangConstituents(name)))
+  )
+    .flat()
+    .filter(Boolean);
+
+  const seen = new Set<string>();
+  const combined: DonorCandidate[] = [];
+
+  for (const candidate of bloomerangMatches) {
+    if (candidate.id && !seen.has(candidate.id)) {
+      seen.add(candidate.id);
+      combined.push(candidate);
+    }
+  }
+
+  if (!combined.length) {
+    buildCandidates(payorNames).forEach((c) => {
+      if (!seen.has(c.id)) {
+        seen.add(c.id);
+        combined.push(c);
+      }
+    });
+  }
+
+  return combined;
+}
+
 async function fileToDataUrl(file: File) {
   const buffer = Buffer.from(await file.arrayBuffer());
   const mime = file.type || "image/png";
@@ -214,7 +245,7 @@ export async function analyzeCheckImage(
 
   const rawFields = normalizeFieldMap(parsed.fields ?? parsed ?? {});
   const payorNames = resolvePayorCandidates(parsed.payorNames, rawFields.payor);
-  const candidates = buildCandidates(payorNames);
+  const candidates = await fetchDonorCandidates(payorNames);
 
   const fields = buildReviewFields(rawFields);
 

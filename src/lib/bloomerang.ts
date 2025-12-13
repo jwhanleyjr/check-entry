@@ -142,7 +142,7 @@ function buildSearchQueries(name: string): BloomerangQuery[] {
         .filter(Boolean),
     ),
   )) {
-    for (const url of buildSearchUrls({ searchText: query })) {
+    for (const url of buildSearchUrls({ search: query })) {
       queries.push({
         label: query,
         url,

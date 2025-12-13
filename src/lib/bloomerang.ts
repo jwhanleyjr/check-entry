@@ -126,7 +126,7 @@ function buildSearchQueries(name: string): BloomerangQuery[] {
   )) {
     queries.push({
       label: query,
-      url: `${BLOOMERANG_BASE_URL}/constituents?searchText=${encodeURIComponent(query)}`,
+      url: `${BLOOMERANG_BASE_URL}/constituents/search?searchText=${encodeURIComponent(query)}`,
     });
   }
 
@@ -137,10 +137,9 @@ function buildSearchQueries(name: string): BloomerangQuery[] {
     const firstName = parts[0];
     const lastName = parts.at(-1);
     if (firstName && lastName) {
-      const params = new URLSearchParams({ firstName, lastName });
       queries.push({
         label: `firstName=${firstName} lastName=${lastName}`,
-        url: `${BLOOMERANG_BASE_URL}/constituents?${params.toString()}`,
+        url: `${BLOOMERANG_BASE_URL}/constituents/search?searchFirstName=${encodeURIComponent(firstName)}&searchLastName=${encodeURIComponent(lastName)}`,
       });
     }
   }

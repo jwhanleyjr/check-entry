@@ -14,7 +14,7 @@ const BLOOMERANG_API_KEY = process.env.BLOOMERANG_API_KEY;
 const BLOOMERANG_BASE_URL =
   process.env.BLOOMERANG_BASE_URL ?? "https://api.bloomerang.co/v2";
 
-const SEARCH_PATHS = ["/constituents/search", "/constituents"];
+const SEARCH_PATHS = ["/constituents/search"];
 
 function formatDisplayName(person: BloomerangConstituent) {
   const parts = [person.firstName, person.lastName].filter(Boolean).join(" ");
@@ -145,33 +145,12 @@ function buildSearchUrls(params: Record<string, string>) {
 function buildSearchQueries(name: string): BloomerangQuery[] {
   const queries: BloomerangQuery[] = [];
 
-  for (const query of Array.from(
-    new Set(expandNameQueries(name)),
-  )) {
+  for (const query of Array.from(new Set(expandNameQueries(name)))) {
     for (const url of buildSearchUrls({ search: query })) {
       queries.push({
         label: query,
         url,
       });
-    }
-  }
-
-  const parts = normalizeName(name)
-    .split(" ")
-    .filter(Boolean);
-  if (parts.length >= 2) {
-    const firstName = sanitizeSearchTerm(parts[0]);
-    const lastName = sanitizeSearchTerm(parts.at(-1) ?? "");
-    if (firstName && lastName) {
-      for (const url of buildSearchUrls({
-        searchFirstName: firstName,
-        searchLastName: lastName,
-      })) {
-        queries.push({
-          label: `firstName=${firstName} lastName=${lastName}`,
-          url,
-        });
-      }
     }
   }
 

@@ -109,6 +109,53 @@ export type BloomerangSearchOutcome = {
   apiKeyPresent: boolean;
 };
 
+type BloomerangQuery = {
+  label: string;
+  url: string;
+};
+
+function buildSearchQueries(name: string): BloomerangQuery[] {
+  const queries: BloomerangQuery[] = [];
+
+  for (const query of Array.from(
+    new Set(
+      expandNameQueries(name)
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
+  )) {
+    queries.push({
+      label: query,
+      url: `${BLOOMERANG_BASE_URL}/constituents?searchText=${encodeURIComponent(query)}`,
+    });
+  }
+
+  const parts = normalizeName(name)
+    .split(" ")
+    .filter(Boolean);
+  if (parts.length >= 2) {
+    const firstName = parts[0];
+    const lastName = parts.at(-1);
+    if (firstName && lastName) {
+      const params = new URLSearchParams({ firstName, lastName });
+      queries.push({
+        label: `firstName=${firstName} lastName=${lastName}`,
+        url: `${BLOOMERANG_BASE_URL}/constituents?${params.toString()}`,
+      });
+    }
+  }
+
+  const seenUrls = new Set<string>();
+  const deduped: BloomerangQuery[] = [];
+  for (const query of queries) {
+    if (seenUrls.has(query.url)) continue;
+    seenUrls.add(query.url);
+    deduped.push(query);
+  }
+
+  return deduped;
+}
+
 export async function searchBloomerangConstituents(
   name: string,
 ): Promise<BloomerangSearchOutcome> {
@@ -125,14 +172,13 @@ export async function searchBloomerangConstituents(
     throw new Error("Missing BLOOMERANG_API_KEY");
   }
 
-  const queries = Array.from(new Set(expandNameQueries(name).map((value) => value.trim()).filter(Boolean)));
-
   const aggregatedResults: BloomerangConstituent[] = [];
   const seenIds = new Set<number>();
   const attempts: BloomerangQueryAttempt[] = [];
 
-  for (const query of queries) {
-    const url = `${BLOOMERANG_BASE_URL}/constituents?searchText=${encodeURIComponent(query)}`;
+  const queries = buildSearchQueries(name);
+
+  for (const { label, url } of queries) {
     try {
       const { data, status } = await fetchJson(url);
       const results = Array.isArray(data)
@@ -147,13 +193,13 @@ export async function searchBloomerangConstituents(
       }
 
       attempts.push({
-        searchText: query,
+        searchText: label,
         resultCount: results.length,
         status,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
-      attempts.push({ searchText: query, resultCount: 0, error: message });
+      attempts.push({ searchText: label, resultCount: 0, error: message });
     }
   }
 

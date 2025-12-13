@@ -94,6 +94,11 @@ export default function Page() {
                           {attempt.resultCount} result{attempt.resultCount === 1 ? "" : "s"}
                           {attempt.status ? ` (HTTP ${attempt.status})` : ""}
                           {attempt.error ? ` — Error: ${attempt.error}` : ""}
+                          {attempt.url ? (
+                            <div className="text-gray-500 text-[11px] break-words font-mono">
+                              {attempt.url}
+                            </div>
+                          ) : null}
                         </li>
                       ))}
                       {(!entry.queryAttempts || entry.queryAttempts.length === 0) && (

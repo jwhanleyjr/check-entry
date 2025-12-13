@@ -97,6 +97,7 @@ async function fetchJson(url: string) {
 
 export type BloomerangQueryAttempt = {
   searchText: string;
+  url?: string;
   resultCount: number;
   status?: number;
   error?: string;
@@ -114,6 +115,19 @@ type BloomerangQuery = {
   url: string;
 };
 
+function buildBaseSearchUrl() {
+  const trimmedBase = BLOOMERANG_BASE_URL.replace(/\/$/, "");
+  return new URL(`${trimmedBase}/constituents/search`);
+}
+
+function buildSearchUrl(params: Record<string, string>) {
+  const url = buildBaseSearchUrl();
+  for (const [key, value] of Object.entries(params)) {
+    url.searchParams.set(key, value);
+  }
+  return url.toString();
+}
+
 function buildSearchQueries(name: string): BloomerangQuery[] {
   const queries: BloomerangQuery[] = [];
 
@@ -126,7 +140,7 @@ function buildSearchQueries(name: string): BloomerangQuery[] {
   )) {
     queries.push({
       label: query,
-      url: `${BLOOMERANG_BASE_URL}/constituents/search?searchText=${encodeURIComponent(query)}`,
+      url: buildSearchUrl({ searchText: query }),
     });
   }
 
@@ -139,7 +153,10 @@ function buildSearchQueries(name: string): BloomerangQuery[] {
     if (firstName && lastName) {
       queries.push({
         label: `firstName=${firstName} lastName=${lastName}`,
-        url: `${BLOOMERANG_BASE_URL}/constituents/search?searchFirstName=${encodeURIComponent(firstName)}&searchLastName=${encodeURIComponent(lastName)}`,
+        url: buildSearchUrl({
+          searchFirstName: firstName,
+          searchLastName: lastName,
+        }),
       });
     }
   }
@@ -193,12 +210,13 @@ export async function searchBloomerangConstituents(
 
       attempts.push({
         searchText: label,
+        url,
         resultCount: results.length,
         status,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
-      attempts.push({ searchText: label, resultCount: 0, error: message });
+      attempts.push({ searchText: label, url, resultCount: 0, error: message });
     }
   }
 

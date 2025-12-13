@@ -1,5 +1,10 @@
 import OpenAI from "openai";
 
+import {
+  searchBloomerangConstituents,
+  type BloomerangQueryAttempt,
+} from "./bloomerang";
+
 export type RawCheckFields = {
   date?: string;
   amountNumeric?: string;
@@ -26,9 +31,19 @@ export type DonorCandidate = {
   name: string;
 };
 
+export type DonorSearchAttempt = {
+  query: string;
+  resultCount: number;
+  error?: string;
+  apiBaseUrl?: string;
+  apiKeyPresent?: boolean;
+  queryAttempts?: BloomerangQueryAttempt[];
+};
+
 export type ProcessCheckPayload = {
   fields: CheckFields;
   candidates: DonorCandidate[];
+  searchLog: DonorSearchAttempt[];
 };
 
 const DEFAULT_MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
@@ -55,6 +70,24 @@ function normalizeWhitespace(value: string) {
   return value.replace(/\s+/g, " ").trim();
 }
 
+function stripKnownPayee(value: string) {
+  const patterns = [
+    /three\s+trees/gi,
+    /three\s+tree/gi,
+    /three\s+tees/gi,
+    /\b3\s*trees?/gi,
+    /\btrees?/gi,
+    /\btees?/gi,
+  ];
+
+  let cleaned = value;
+  for (const pattern of patterns) {
+    cleaned = cleaned.replace(pattern, " ");
+  }
+
+  return cleaned;
+}
+
 function isKnownPayeeName(value: string | undefined) {
   if (!value) return false;
   const cleaned = normalizeWhitespace(value).replace(/[^a-zA-Z\s'-]/g, "").toLowerCase();
@@ -73,6 +106,25 @@ function stripHonorifics(value: string) {
 function extractNameWords(value: string) {
   const words = value.match(/[a-zA-Z][a-zA-Z'-]*/g);
   return words ? words.join(" ") : "";
+}
+
+function splitOnRepeatedLastName(segment: string) {
+  const words = segment.split(" ").filter(Boolean);
+  if (words.length < 4) return [segment];
+
+  const lastName = words.at(-1);
+  if (!lastName) return [segment];
+
+  const firstLastNameIndex = words.indexOf(lastName);
+  if (firstLastNameIndex <= 0 || firstLastNameIndex === words.length - 1) {
+    return [segment];
+  }
+
+  const first = words.slice(0, firstLastNameIndex + 1).join(" ");
+  const second = words.slice(firstLastNameIndex + 1).join(" ");
+  if (!first || !second) return [segment];
+
+  return [first, second];
 }
 
 function attachSharedLastName(parts: string[]) {
@@ -95,10 +147,13 @@ export function extractPayorNames(payorText: string): string[] {
     .replace(/\b(payor|payer|from|by|for)\b/gi, " ")
     .replace(/&amp;/gi, "&");
 
-  const segments = cleaned
+  const payeeStripped = stripKnownPayee(cleaned);
+
+  const segments = payeeStripped
     .split(/\b(?:and|&|\+|\/)\b/i)
     .map(stripHonorifics)
     .map(extractNameWords)
+    .flatMap(splitOnRepeatedLastName)
     .map(normalizeWhitespace)
     .filter(Boolean);
 
@@ -121,7 +176,9 @@ function normalizeFieldMap(raw: Record<string, unknown>): RawCheckFields {
 
 function resolvePayorCandidates(rawPayorNames: unknown, payorField?: string) {
   const explicitNames = Array.isArray(rawPayorNames)
-    ? rawPayorNames.filter((v): v is string => typeof v === "string")
+    ? rawPayorNames
+        .filter((v): v is string => typeof v === "string")
+        .flatMap(extractPayorNames)
     : [];
 
   const sanitizedPayorField = payorField && !isKnownPayeeName(payorField)
@@ -163,8 +220,50 @@ function buildReviewFields(raw: RawCheckFields): CheckFields {
   return cleaned;
 }
 
-function buildCandidates(names: string[]): DonorCandidate[] {
-  return names.map((name, idx) => ({ id: `payor-${idx + 1}`, name }));
+async function fetchDonorCandidates(payorNames: string[]) {
+  const searchLog: DonorSearchAttempt[] = [];
+
+  const bloomerangMatches = (
+    await Promise.all(
+      payorNames.map(async (name) => {
+        if (!name.trim()) {
+          searchLog.push({ query: name, resultCount: 0, error: "Empty name skipped" });
+          return [];
+        }
+
+        try {
+          const { matches, attempts, apiBaseUrl, apiKeyPresent } =
+            await searchBloomerangConstituents(name);
+          searchLog.push({
+            query: name,
+            resultCount: matches.length,
+            apiBaseUrl,
+            apiKeyPresent,
+            queryAttempts: attempts,
+          });
+          return matches;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Unknown error";
+          searchLog.push({ query: name, resultCount: 0, error: message });
+          return [];
+        }
+      }),
+    )
+  )
+    .flat()
+    .filter(Boolean);
+
+  const seen = new Set<string>();
+  const combined: DonorCandidate[] = [];
+
+  for (const candidate of bloomerangMatches) {
+    if (candidate.id && !seen.has(candidate.id)) {
+      seen.add(candidate.id);
+      combined.push(candidate);
+    }
+  }
+
+  return { candidates: combined, searchLog };
 }
 
 async function fileToDataUrl(file: File) {
@@ -214,7 +313,7 @@ export async function analyzeCheckImage(
 
   const rawFields = normalizeFieldMap(parsed.fields ?? parsed ?? {});
   const payorNames = resolvePayorCandidates(parsed.payorNames, rawFields.payor);
-  const candidates = buildCandidates(payorNames);
+  const { candidates, searchLog } = await fetchDonorCandidates(payorNames);
 
   const fields = buildReviewFields(rawFields);
 
@@ -225,5 +324,6 @@ export async function analyzeCheckImage(
   return {
     fields,
     candidates,
+    searchLog,
   };
 }

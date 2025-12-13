@@ -39,6 +39,13 @@ function loosenNameQuery(name: string) {
   return filtered.join(" ");
 }
 
+function sanitizeSearchTerm(value: string) {
+  return value
+    .replace(/[^a-zA-Z\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function expandNameQueries(name: string) {
   const normalized = normalizeName(name);
   if (!normalized) return [] as string[];
@@ -68,7 +75,10 @@ function expandNameQueries(name: string) {
     }
   }
 
-  return queries;
+  return queries
+    .map(sanitizeSearchTerm)
+    .map((value) => value.trim())
+    .filter(Boolean);
 }
 
 async function fetchJson(url: string) {
@@ -122,11 +132,11 @@ function buildSearchUrls(params: Record<string, string>) {
   const urls: string[] = [];
 
   for (const path of SEARCH_PATHS) {
-    const url = new URL(`${trimmedBase}${path}`);
-    for (const [key, value] of Object.entries(params)) {
-      url.searchParams.set(key, value);
-    }
-    urls.push(url.toString());
+    const query = Object.entries(params)
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .join("&");
+    const url = `${trimmedBase}${path}?${query}`;
+    urls.push(url);
   }
 
   return Array.from(new Set(urls));
@@ -136,11 +146,7 @@ function buildSearchQueries(name: string): BloomerangQuery[] {
   const queries: BloomerangQuery[] = [];
 
   for (const query of Array.from(
-    new Set(
-      expandNameQueries(name)
-        .map((value) => value.trim())
-        .filter(Boolean),
-    ),
+    new Set(expandNameQueries(name)),
   )) {
     for (const url of buildSearchUrls({ search: query })) {
       queries.push({
@@ -154,8 +160,8 @@ function buildSearchQueries(name: string): BloomerangQuery[] {
     .split(" ")
     .filter(Boolean);
   if (parts.length >= 2) {
-    const firstName = parts[0];
-    const lastName = parts.at(-1);
+    const firstName = sanitizeSearchTerm(parts[0]);
+    const lastName = sanitizeSearchTerm(parts.at(-1) ?? "");
     if (firstName && lastName) {
       for (const url of buildSearchUrls({
         searchFirstName: firstName,

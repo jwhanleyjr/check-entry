@@ -14,6 +14,8 @@ const BLOOMERANG_API_KEY = process.env.BLOOMERANG_API_KEY;
 const BLOOMERANG_BASE_URL =
   process.env.BLOOMERANG_BASE_URL ?? "https://api.bloomerang.co/v2";
 
+const SEARCH_PATHS = ["/constituents/search", "/constituents"];
+
 function formatDisplayName(person: BloomerangConstituent) {
   const parts = [person.firstName, person.lastName].filter(Boolean).join(" ");
   return parts || person.householdName || person.displayName || "Unknown";
@@ -115,17 +117,19 @@ type BloomerangQuery = {
   url: string;
 };
 
-function buildBaseSearchUrl() {
+function buildSearchUrls(params: Record<string, string>) {
   const trimmedBase = BLOOMERANG_BASE_URL.replace(/\/$/, "");
-  return new URL(`${trimmedBase}/constituents/search`);
-}
+  const urls: string[] = [];
 
-function buildSearchUrl(params: Record<string, string>) {
-  const url = buildBaseSearchUrl();
-  for (const [key, value] of Object.entries(params)) {
-    url.searchParams.set(key, value);
+  for (const path of SEARCH_PATHS) {
+    const url = new URL(`${trimmedBase}${path}`);
+    for (const [key, value] of Object.entries(params)) {
+      url.searchParams.set(key, value);
+    }
+    urls.push(url.toString());
   }
-  return url.toString();
+
+  return Array.from(new Set(urls));
 }
 
 function buildSearchQueries(name: string): BloomerangQuery[] {
@@ -138,10 +142,12 @@ function buildSearchQueries(name: string): BloomerangQuery[] {
         .filter(Boolean),
     ),
   )) {
-    queries.push({
-      label: query,
-      url: buildSearchUrl({ searchText: query }),
-    });
+    for (const url of buildSearchUrls({ searchText: query })) {
+      queries.push({
+        label: query,
+        url,
+      });
+    }
   }
 
   const parts = normalizeName(name)
@@ -151,13 +157,15 @@ function buildSearchQueries(name: string): BloomerangQuery[] {
     const firstName = parts[0];
     const lastName = parts.at(-1);
     if (firstName && lastName) {
-      queries.push({
-        label: `firstName=${firstName} lastName=${lastName}`,
-        url: buildSearchUrl({
-          searchFirstName: firstName,
-          searchLastName: lastName,
-        }),
-      });
+      for (const url of buildSearchUrls({
+        searchFirstName: firstName,
+        searchLastName: lastName,
+      })) {
+        queries.push({
+          label: `firstName=${firstName} lastName=${lastName}`,
+          url,
+        });
+      }
     }
   }
 

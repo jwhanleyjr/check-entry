@@ -70,6 +70,24 @@ function normalizeWhitespace(value: string) {
   return value.replace(/\s+/g, " ").trim();
 }
 
+function stripKnownPayee(value: string) {
+  const patterns = [
+    /three\s+trees/gi,
+    /three\s+tree/gi,
+    /three\s+tees/gi,
+    /\b3\s*trees?/gi,
+    /\btrees?/gi,
+    /\btees?/gi,
+  ];
+
+  let cleaned = value;
+  for (const pattern of patterns) {
+    cleaned = cleaned.replace(pattern, " ");
+  }
+
+  return cleaned;
+}
+
 function isKnownPayeeName(value: string | undefined) {
   if (!value) return false;
   const cleaned = normalizeWhitespace(value).replace(/[^a-zA-Z\s'-]/g, "").toLowerCase();
@@ -129,7 +147,9 @@ export function extractPayorNames(payorText: string): string[] {
     .replace(/\b(payor|payer|from|by|for)\b/gi, " ")
     .replace(/&amp;/gi, "&");
 
-  const segments = cleaned
+  const payeeStripped = stripKnownPayee(cleaned);
+
+  const segments = payeeStripped
     .split(/\b(?:and|&|\+|\/)\b/i)
     .map(stripHonorifics)
     .map(extractNameWords)
